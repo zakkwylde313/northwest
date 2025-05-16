@@ -1,9 +1,8 @@
 // Vercel Serverless Function (e.g., /api/daily-blog-update.js)
 
 import admin from 'firebase-admin';
-// import chromium from 'chrome-aws-lambda'; // Vercel 환경용
-import chromium from '@sparticuz/chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';   // Vercel 환경용 (puppeteer-core 사용)
+import chromium from '@sparticuz/chrome-aws-lambda'; // '@sparticuz/chrome-aws-lambda' 사용
+import puppeteer from 'puppeteer-core';
 import RssParser from 'rss-parser';
 import fs from 'fs';
 import path from 'path';
@@ -32,7 +31,7 @@ const POST_RECOGNITION_CRITERIA = {
   minImageCount: 3,
 };
 
-// --- scrapeNaverBlogPost 함수 (Puppeteer page를 인자로 받도록 수정) ---
+// --- scrapeNaverBlogPost 함수 ---
 async function scrapeNaverBlogPost(page, url) {
   try {
     console.log(`[Scraper] 페이지로 이동 중: ${url}`);
@@ -111,9 +110,9 @@ async function scrapeNaverBlogPost(page, url) {
   }
 }
 
-
 // --- Vercel Serverless Function Handler ---
 export default async function handler(request, response) {
+  // Firebase 초기화 (핸들러 내부에서 한번만 실행되도록)
   if (!admin.apps.length && process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON_BASE64) {
     try {
         const serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON_BASE64, 'base64').toString('utf-8');
@@ -137,7 +136,6 @@ export default async function handler(request, response) {
     return;
   }
 
-
   let browser = null;
   let puppeteerPage = null;
 
@@ -149,16 +147,16 @@ export default async function handler(request, response) {
     try {
       browser = await puppeteer.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath, // chrome-aws-lambda가 제공
-        headless: chromium.headless, // chrome-aws-lambda의 headless 설정 (기본 true)
+        defaultViewport: await chromium.defaultViewport(), // 함수 호출로 변경
+        executablePath: await chromium.executablePath(),   // 함수 호출로 변경
+        headless: await chromium.headless(),             // 함수 호출로 변경
         ignoreHTTPSErrors: true,
       });
       console.log('[Launcher] Puppeteer 브라우저 실행 성공.');
     } catch (launchError) {
-      console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError);
+      console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack); // 스택 트레이스 포함
       if (response && typeof response.status === 'function') {
-        response.status(500).send('오류: Puppeteer 브라우저를 초기화할 수 없습니다.');
+        response.status(500).send(`오류: Puppeteer 브라우저를 초기화할 수 없습니다. (${launchError.message})`);
       }
       return; 
     }
@@ -170,11 +168,11 @@ export default async function handler(request, response) {
     await puppeteerPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     console.log('[Launcher] 페이지 준비 및 User-Agent 설정 완료.');
 
-    const blogsSnapshot = await db.collection('blogs').get();
+    const blogsSnapshot = await db.collection('blogs').where('isActive', '==', true).get(); // 활성 블로그만 가져오도록 수정 (isActive 필드 사용 시)
     if (blogsSnapshot.empty) {
-      console.log('처리할 블로그가 없습니다.');
+      console.log('처리할 활성 블로그가 없습니다.');
       if (response && typeof response.status === 'function') {
-        response.status(200).send('처리할 블로그가 없습니다.');
+        response.status(200).send('처리할 활성 블로그가 없습니다.');
       }
       return;
     }
@@ -185,7 +183,7 @@ export default async function handler(request, response) {
       console.log(`\n블로그 처리 중: ${blogData.name} (ID: ${blogId})`);
 
       if (!blogData.rssFeedUrl) {
-        console.warn(`${blogData.name} 블로그에 RSS 피드 URL이 없습니다. 건너뜁니다.`);
+        console.warn(`${blogData.name} 블로그에 RSS 피드 URL이 없습니다. 건너<0xEB><03><0x8D>니다.`);
         continue;
       }
 
@@ -193,14 +191,13 @@ export default async function handler(request, response) {
       try {
         feed = await rssParser.parseURL(blogData.rssFeedUrl);
       } catch (rssError) {
-        console.error(`${blogData.name} RSS 피드 파싱 오류: ${rssError.message}. 건너뜁니다.`);
+        console.error(`${blogData.name} RSS 피드 파싱 오류: ${rssError.message}. 건너<0xEB><03><0x8D>니다.`);
         continue;
       }
       
-      let newPostsInChallengeCount = 0; // 이 블로그의 챌린지 기간 내 총 포스팅 수 (RSS 기준)
-      let recognizedPostsInBlog = 0; // 이 블로그의 기준 통과 포스팅 수
+      let newPostsInChallengeCount = 0;
+      let recognizedPostsInBlog = 0;
       let latestPostDateForBlog = blogData.latestPostDateInChallenge ? blogData.latestPostDateInChallenge.toDate() : null;
-
 
       for (const item of feed.items) {
         const postDate = new Date(item.isoDate || item.pubDate);
@@ -210,54 +207,55 @@ export default async function handler(request, response) {
 
         newPostsInChallengeCount++;
         const postLink = item.link;
-        const postId = `${blogId}_${Buffer.from(postLink).toString('base64')}`;
+        // postId 생성 시 URL의 쿼리스트링이나 # 부분을 제거하여 좀 더 일관되게 만듭니다.
+        const cleanLink = postLink.split('?')[0].split('#')[0];
+        const postId = `${blogId}_${Buffer.from(cleanLink).toString('base64')}`;
+
 
         const postRef = db.collection('posts').doc(postId);
-        const postDocSnapshot = await postRef.get(); // 변수명 변경 postDoc -> postDocSnapshot
+        const postDocSnapshot = await postRef.get();
 
-        // 6시간 이내 스크랩된 경우 건너뛰기 (시간 조절 가능)
         if (postDocSnapshot.exists && postDocSnapshot.data().scrapedAt && 
-            (new Date(postDocSnapshot.data().scrapedAt.toDate()) > new Date(Date.now() - 6 * 60 * 60 * 1000))) {
-          console.log(`포스팅 ${postLink} 는(은) 이미 최근에 처리되었습니다. 통계만 집계.`);
+            (new Date(postDocSnapshot.data().scrapedAt.toDate()) > new Date(Date.now() - 6 * 60 * 60 * 1000))) { // 6시간
+          console.log(`포스팅 ${item.title || postLink} 는(은) 이미 최근에 처리되었습니다. 통계만 집계.`);
           if (postDocSnapshot.data().isRecognized) {
             recognizedPostsInBlog++;
           }
         } else {
-            console.log(`새 포스팅 또는 업데이트 필요한 포스팅 처리: ${item.title} (${postLink})`);
+            console.log(`새 포스팅 또는 업데이트 필요한 포스팅 처리: ${item.title || postLink}`);
             const scrapedData = await scrapeNaverBlogPost(puppeteerPage, postLink);
 
             if (scrapedData && scrapedData.success) {
                 const postToSave = {
                     blogId: blogId,
                     title: item.title || '제목 없음',
-                    link: postLink,
+                    link: postLink, // 원본 링크 저장
                     publishDate: admin.firestore.Timestamp.fromDate(postDate),
                     contentFullText: scrapedData.text,
                     charCountWithSpaces: scrapedData.charCountWithSpaces,
                     charCountNoSpaces: scrapedData.charCountNoSpaces,
                     imageCount: scrapedData.imageCount,
                     isRecognized: scrapedData.isRecognized,
-                    adminFeedback: postDocSnapshot.exists ? postDocSnapshot.data().adminFeedback : null, // 기존 피드백 유지
+                    adminFeedback: postDocSnapshot.exists ? postDocSnapshot.data().adminFeedback : null,
                     scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
                 await postRef.set(postToSave, { merge: true });
-                console.log(`포스팅 ${item.title} 정보 Firestore에 저장 완료.`);
+                console.log(`포스팅 ${item.title || postLink} 정보 Firestore에 저장 완료.`);
 
                 if (postToSave.isRecognized) {
                     recognizedPostsInBlog++;
                 }
             } else {
-                console.error(`포스팅 ${item.title} 스크래핑 실패: ${scrapedData?.error || '알 수 없는 오류'}`);
-                if (postDocSnapshot.exists && postDocSnapshot.data().isRecognized) { // 실패 시 기존 데이터 따름
+                console.error(`포스팅 ${item.title || postLink} 스크래핑 실패: ${scrapedData?.error || '알 수 없는 오류'}`);
+                if (postDocSnapshot.exists && postDocSnapshot.data().isRecognized) {
                     recognizedPostsInBlog++;
                 }
             }
         }
-        // latestPostDateForBlog 업데이트
         if (!latestPostDateForBlog || postDate > latestPostDateForBlog) {
             latestPostDateForBlog = postDate;
         }
-      } // feed.items loop 끝
+      }
 
       const blogUpdateData = {
         totalPostsInChallenge: newPostsInChallengeCount,
@@ -269,8 +267,7 @@ export default async function handler(request, response) {
 
       await db.collection('blogs').doc(blogId).update(blogUpdateData);
       console.log(`${blogData.name} 블로그 요약 정보 업데이트 완료.`);
-
-    } // blogsSnapshot.docs loop 끝
+    }
 
     if (response && typeof response.status === 'function') {
         console.log('모든 블로그 처리 완료.');

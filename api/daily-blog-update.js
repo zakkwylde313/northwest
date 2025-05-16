@@ -1,8 +1,8 @@
 // Vercel Serverless Function (e.g., /api/daily-blog-update.js)
 
 import admin from 'firebase-admin';
-import chromium from '@sparticuz/chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer'; 
 import RssParser from 'rss-parser';
 import fs from 'fs';
 import path from 'path';

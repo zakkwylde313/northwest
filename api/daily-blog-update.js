@@ -1,7 +1,8 @@
 // Vercel Serverless Function (e.g., /api/daily-blog-update.js)
 
 import admin from 'firebase-admin';
-import chromium from 'chrome-aws-lambda'; // Vercel 환경용
+// import chromium from 'chrome-aws-lambda'; // Vercel 환경용
+import chromium from '@sparticuz/chrome-aws-lambda';
 import puppeteer from 'puppeteer-core';   // Vercel 환경용 (puppeteer-core 사용)
 import RssParser from 'rss-parser';
 import fs from 'fs';

@@ -112,7 +112,6 @@ async function scrapeNaverBlogPost(page, url) {
 
 // --- Vercel Serverless Function Handler ---
 export default async function handler(request, response) {
-  // Firebase 초기화 (핸들러 내부에서 한번만 실행되도록)
   if (!admin.apps.length && process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON_BASE64) {
     try {
         const serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON_BASE64, 'base64').toString('utf-8');
@@ -142,25 +141,23 @@ export default async function handler(request, response) {
   try {
     console.log('일일 블로그 업데이트 작업을 시작합니다...');
 
-    // ▼▼▼ Puppeteer 브라우저 실행 (Vercel 환경용으로 수정) ▼▼▼
     console.log('[Launcher] Vercel 환경용 Puppeteer 브라우저를 실행합니다...');
     try {
       browser = await puppeteer.launch({
         args: chromium.args,
-        defaultViewport: await chromium.defaultViewport(), // 함수 호출로 변경
-        executablePath: await chromium.executablePath(),   // 함수 호출로 변경
-        headless: await chromium.headless(),             // 함수 호출로 변경
+        defaultViewport: chromium.defaultViewport, // <<<--- 여기를 함수 호출에서 속성 직접 참조로 변경!
+        executablePath: await chromium.executablePath(),   
+        headless: await chromium.headless(),             
         ignoreHTTPSErrors: true,
       });
       console.log('[Launcher] Puppeteer 브라우저 실행 성공.');
     } catch (launchError) {
-      console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack); // 스택 트레이스 포함
+      console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack);
       if (response && typeof response.status === 'function') {
         response.status(500).send(`오류: Puppeteer 브라우저를 초기화할 수 없습니다. (${launchError.message})`);
       }
       return; 
     }
-    // ▲▲▲ Puppeteer 브라우저 실행 (Vercel 환경용으로 수정) ▲▲▲
     
     console.log('[Launcher] 새 페이지를 엽니다...');
     puppeteerPage = await browser.newPage();
@@ -168,7 +165,8 @@ export default async function handler(request, response) {
     await puppeteerPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     console.log('[Launcher] 페이지 준비 및 User-Agent 설정 완료.');
 
-    const blogsSnapshot = await db.collection('blogs').where('isActive', '==', true).get(); // 활성 블로그만 가져오도록 수정 (isActive 필드 사용 시)
+    // blogs 컬렉션에서 isActive가 true인 문서들만 가져오도록 수정 (또는 이 필드를 사용하지 않는다면 where절 제거)
+    const blogsSnapshot = await db.collection('blogs').where('isActive', '==', true).get(); 
     if (blogsSnapshot.empty) {
       console.log('처리할 활성 블로그가 없습니다.');
       if (response && typeof response.status === 'function') {
@@ -207,16 +205,14 @@ export default async function handler(request, response) {
 
         newPostsInChallengeCount++;
         const postLink = item.link;
-        // postId 생성 시 URL의 쿼리스트링이나 # 부분을 제거하여 좀 더 일관되게 만듭니다.
         const cleanLink = postLink.split('?')[0].split('#')[0];
         const postId = `${blogId}_${Buffer.from(cleanLink).toString('base64')}`;
-
 
         const postRef = db.collection('posts').doc(postId);
         const postDocSnapshot = await postRef.get();
 
         if (postDocSnapshot.exists && postDocSnapshot.data().scrapedAt && 
-            (new Date(postDocSnapshot.data().scrapedAt.toDate()) > new Date(Date.now() - 6 * 60 * 60 * 1000))) { // 6시간
+            (new Date(postDocSnapshot.data().scrapedAt.toDate()) > new Date(Date.now() - 6 * 60 * 60 * 1000))) {
           console.log(`포스팅 ${item.title || postLink} 는(은) 이미 최근에 처리되었습니다. 통계만 집계.`);
           if (postDocSnapshot.data().isRecognized) {
             recognizedPostsInBlog++;
@@ -229,7 +225,7 @@ export default async function handler(request, response) {
                 const postToSave = {
                     blogId: blogId,
                     title: item.title || '제목 없음',
-                    link: postLink, // 원본 링크 저장
+                    link: postLink,
                     publishDate: admin.firestore.Timestamp.fromDate(postDate),
                     contentFullText: scrapedData.text,
                     charCountWithSpaces: scrapedData.charCountWithSpaces,

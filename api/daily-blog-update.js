@@ -105,7 +105,7 @@ async function scrapeNaverBlogPost(page, url) {
     return postData;
 
   } catch (error) {
-    console.error(`[Scraper] ${url} 스크래핑 중 오류:`, error.message, error.stack); // 스택 트레이스 추가
+    console.error(`[Scraper] ${url} 스크래핑 중 오류:`, error.message, error.stack);
     return { success: false, error: error.message };
   }
 }
@@ -143,15 +143,15 @@ export default async function handler(request, response) {
 
     console.log('[Launcher] Vercel 환경용 Puppeteer 브라우저를 실행합니다...');
     try {
-      // ▼▼▼ Puppeteer 실행 옵션 최종 올바른 버전 ▼▼▼
+      // ▼▼▼ Puppeteer 실행 옵션 최종 진짜 최종 수정 ▼▼▼
       browser = await puppeteer.launch({
-        args: chromium.args,
-        defaultViewport: chromium.defaultViewport,     // 속성 직접 참조
-        executablePath: await chromium.executablePath(), // 비동기 함수 호출 (await 사용)
-        headless: await chromium.headless(),             // 비동기 함수 호출 (await 사용)
+        args: chromium.args,                             // 일반 속성
+        defaultViewport: chromium.defaultViewport,         // 일반 속성
+        executablePath: await chromium.executablePath,   // await + 속성 (함수 호출 아님!)
+        headless: await chromium.headless,                 // await + 속성 (함수 호출 아님!)
         ignoreHTTPSErrors: true,
       });
-      // ▲▲▲ Puppeteer 실행 옵션 최종 올바른 버전 ▲▲▲
+      // ▲▲▲ Puppeteer 실행 옵션 최종 진짜 최종 수정 ▲▲▲
       console.log('[Launcher] Puppeteer 브라우저 실행 성공.');
     } catch (launchError) {
       console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack);

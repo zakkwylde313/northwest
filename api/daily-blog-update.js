@@ -143,13 +143,15 @@ export default async function handler(request, response) {
 
     console.log('[Launcher] Vercel 환경용 Puppeteer 브라우저를 실행합니다...');
     try {
+      // ▼▼▼ Puppeteer 실행 옵션 최종 수정 ▼▼▼
       browser = await puppeteer.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport, // <<<--- 여기를 함수 호출에서 속성 직접 참조로 변경!
-        executablePath: await chromium.executablePath(),   
-        headless: await chromium.headless(),             
+        defaultViewport: chromium.defaultViewport,     // 속성 직접 참조
+        executablePath: chromium.executablePath,       // 속성 직접 참조 (await 제거)
+        headless: chromium.headless,                 // 속성 직접 참조 (await 제거)
         ignoreHTTPSErrors: true,
       });
+      // ▲▲▲ Puppeteer 실행 옵션 최종 수정 ▲▲▲
       console.log('[Launcher] Puppeteer 브라우저 실행 성공.');
     } catch (launchError) {
       console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack);
@@ -165,8 +167,7 @@ export default async function handler(request, response) {
     await puppeteerPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     console.log('[Launcher] 페이지 준비 및 User-Agent 설정 완료.');
 
-    // blogs 컬렉션에서 isActive가 true인 문서들만 가져오도록 수정 (또는 이 필드를 사용하지 않는다면 where절 제거)
-    const blogsSnapshot = await db.collection('blogs').where('isActive', '==', true).get(); 
+    const blogsSnapshot = await db.collection('blogs').where('isActive', '==', true).get();
     if (blogsSnapshot.empty) {
       console.log('처리할 활성 블로그가 없습니다.');
       if (response && typeof response.status === 'function') {

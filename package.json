@@ -1,4 +1,7 @@
 {
+  "name": "northwest",
+  "version": "1.0.0",
+  "type": "module", 
   "dependencies": {
     "chrome-aws-lambda": "^10.1.0",
     "firebase-admin": "^13.4.0",

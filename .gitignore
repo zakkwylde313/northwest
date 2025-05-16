@@ -1,3 +1,4 @@
 node_modules/  # <-- 이 줄이 가장 중요합니다!
 .env
 output/
+headless-shell-cache/

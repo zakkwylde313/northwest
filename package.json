@@ -3,5 +3,9 @@
     "firebase-admin": "^13.4.0",
     "puppeteer": "^24.8.2",
     "rss-parser": "^3.13.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
+
 }

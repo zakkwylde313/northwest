@@ -143,7 +143,7 @@ export default async function handler(request, response) {
 
     console.log('[Launcher] Vercel 환경용 Puppeteer 브라우저를 실행합니다...');
     try {
-      // ▼▼▼ Puppeteer 실행 옵션 최종 진짜 최종 수정 ▼▼▼
+      // ▼▼▼ Puppeteer 실행 옵션 재수정 (await + 속성명, 괄호 없음) ▼▼▼
       browser = await puppeteer.launch({
         args: chromium.args,                             // 일반 속성
         defaultViewport: chromium.defaultViewport,         // 일반 속성
@@ -151,7 +151,7 @@ export default async function handler(request, response) {
         headless: await chromium.headless,                 // await + 속성 (함수 호출 아님!)
         ignoreHTTPSErrors: true,
       });
-      // ▲▲▲ Puppeteer 실행 옵션 최종 진짜 최종 수정 ▲▲▲
+      // ▲▲▲ Puppeteer 실행 옵션 재수정 ▲▲▲
       console.log('[Launcher] Puppeteer 브라우저 실행 성공.');
     } catch (launchError) {
       console.error('[Launcher] Puppeteer 브라우저 실행에 실패했습니다:', launchError.message, launchError.stack);
